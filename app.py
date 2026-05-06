@@ -5,7 +5,7 @@ and visualize outputs in Streamlit, including summary tables and a Gantt chart.
 
 Author: Abdul Rashid Mussah
 Created: 11/14/2025
-Last Updated: 4/28/2026
+Last Updated: 5/6/2026
 
 Main features:
 - Upload Excel workbook
@@ -961,17 +961,17 @@ def process_summary_statistics(file_bytes: bytes):
     )
 
 
-    totals = {
-        "Project Archetype": "Total",
-        "Project Count": summary_stats["Project Count"].sum(),
-        "Total Cost": summary_stats["Total Cost"].sum(),
-        "Min Cost": "-",
-        "Median Cost": "-",
-        "Max Cost": "-",
-        "Mean Cost": "-",
-    }
+    # totals = {
+    #     "Project Archetype": "Total",
+    #     "Project Count": summary_stats["Project Count"].sum(),
+    #     "Total Cost": summary_stats["Total Cost"].sum(),
+    #     "Min Cost": "-",
+    #     "Median Cost": "-",
+    #     "Max Cost": "-",
+    #     "Mean Cost": "-",
+    # }
 
-    summary_stats = pd.concat([summary_stats, pd.DataFrame([totals])], ignore_index=True)
+    # summary_stats = pd.concat([summary_stats, pd.DataFrame([totals])], ignore_index=True)
 
     return summary_stats
 
@@ -1062,6 +1062,7 @@ def main():
                     st.markdown(f"**Unique Projects:** {result_df['Project Name'].nunique():,}")
                     st.markdown(f"**Unique Resources:** {result_df['Resource Name'].nunique():,}")
                     st.markdown(f"**Total Hours (All Quarters):** {result_df[result_df.columns[9:]].sum().sum():,.2f}")
+                    st.markdown(f"**Total Cost (All Projects):** {summary_stats["Total Cost"].sum():,.2f}")
                     with st.expander("Cost Summary by Project Archetype in $M", expanded=True, width=1000):
                         st.dataframe(summary_stats, width=1000)
                         # st.dataframe(style_total_row(summary_stats), width=750)
