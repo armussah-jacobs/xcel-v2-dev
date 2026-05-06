@@ -961,17 +961,17 @@ def process_summary_statistics(file_bytes: bytes):
     )
 
 
-    # totals = {
-    #     "Project Archetype": "Total",
-    #     "Project Count": summary_stats["Project Count"].sum(),
-    #     "Total Cost": summary_stats["Total Cost"].sum(),
-    #     "Min Cost": "-",
-    #     "Median Cost": "-",
-    #     "Max Cost": "-",
-    #     "Mean Cost": "-",
-    # }
+    totals = {
+        "Project Archetype": "Total",
+        "Project Count": summary_stats["Project Count"].sum(),
+        "Total Cost": summary_stats["Total Cost"].sum(),
+        "Min Cost": "-",
+        "Median Cost": "-",
+        "Max Cost": "-",
+        "Mean Cost": "-",
+    }
 
-    # summary_stats = pd.concat([summary_stats, pd.DataFrame([totals])], ignore_index=True)
+    summary_stats = pd.concat([summary_stats, pd.DataFrame([totals])], ignore_index=True)
 
     return summary_stats
 
