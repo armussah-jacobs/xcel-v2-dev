@@ -473,7 +473,7 @@ def final_program_spreads_wide(
     return allocated
 
 
-def make_gantt_source(result_df: pd.DataFrame) -> pd.DataFrame:
+def make_gantt_source(result_df: pd.DataFrame, agg_level) -> pd.DataFrame:
     phase_idx = result_df.columns.get_loc("Phase")
     date_cols = result_df.columns[phase_idx + 1:].tolist()
 
@@ -488,7 +488,7 @@ def make_gantt_source(result_df: pd.DataFrame) -> pd.DataFrame:
     # parsed_dates = pd.to_datetime(date_cols, format="%Y-%m-%d", errors="coerce")
     valid_pairs = [(c, d) for c, d in zip(date_cols, parsed_dates) if pd.notna(d)]
     if not valid_pairs:
-        return pd.DataFrame(columns=["Project Name", "Starting Quarter", "Finishing Quarter"])
+        return pd.DataFrame(columns=["Project Name", f"Starting {agg_level.capitalize()}", f"Finishing {agg_level.capitalize()}"])
 
     valid_cols = [c for c, _ in valid_pairs]
     valid_dates = [d for _, d in valid_pairs]
@@ -505,27 +505,27 @@ def make_gantt_source(result_df: pd.DataFrame) -> pd.DataFrame:
                 end_idx = i if (is_last and val == 1) else i - 1
                 start_date = valid_dates[start_idx]
                 finish_date = valid_dates[end_idx] + pd.offsets.QuarterBegin(1)
-                records.append({"Project Name": project_name, "Starting Quarter": start_date, "Finishing Quarter": finish_date})
+                records.append({"Project Name": project_name, f"Starting {agg_level.capitalize()}": start_date, f"Finishing {agg_level.capitalize()}": finish_date})
                 start_idx = None
 
     return pd.DataFrame(records)
 
 
-def make_gantt_figure(gantt_df: pd.DataFrame):
+def make_gantt_figure(gantt_df: pd.DataFrame, agg_level: str) -> go.Figure | None:
     if gantt_df.empty:
         return None
 
-    gantt_df = gantt_df.sort_values(["Starting Quarter", "Project Name"]).copy()
+    gantt_df = gantt_df.sort_values([f"Starting {agg_level.capitalize()}", "Project Name"]).copy()
     gantt_df["Color Group"] = gantt_df["Project Name"]
 
     fig = px.timeline(
         gantt_df,
         title="Project Activity Gantt Chart",
-        x_start="Starting Quarter",
-        x_end="Finishing Quarter",
+        x_start=f"Starting {agg_level.capitalize()}",
+        x_end=f"Finishing {agg_level.capitalize()}",
         y="Project Name",
         color="Color Group",
-        hover_data={"Starting Quarter": True, "Finishing Quarter": True, "Color Group": False},
+        hover_data={f"Starting {agg_level.capitalize()}": True, f"Finishing {agg_level.capitalize()}": True, "Color Group": False},
     )
 
     fig.update_yaxes(autorange="reversed")
@@ -659,19 +659,24 @@ def analyze_lead_activity(df, start_date_col, lead_names=None):
     return grouped_counts.reset_index()
 
 
-def melt_dataframe(df, existing_metadata, date_cols):
+def melt_dataframe(df, existing_metadata, date_cols, agg_level):
     df_melted = df.melt(
         id_vars=existing_metadata,
         value_vars=date_cols,
-        var_name='Quarter',
+        var_name= agg_level.capitalize(),
         value_name='Hours'
     )
 
     # Convert Quarter to datetime
-    df_melted['Quarter'] = pd.to_datetime(df_melted['Quarter'], format='%d-%b-%y', errors='coerce')
+    if agg_level.lower() == "quarter":
+        var_name = agg_level.capitalize()
+        df_melted[var_name] = pd.to_datetime(df_melted[var_name], format='%d-%b-%y', errors='coerce')
+    elif agg_level.lower() == "month":
+        var_name = agg_level.capitalize()
+        df_melted[var_name] = pd.to_datetime(df_melted[var_name], format="%Y-%m", errors='coerce')
 
     # Drop rows where Quarter conversion failed
-    df_melted = df_melted.dropna(subset=['Quarter'])
+    df_melted = df_melted.dropna(subset=[var_name])
     return df_melted
 
 
@@ -931,7 +936,7 @@ def process_workbook(file_bytes: bytes, hours_per_day: float, agg_level: str, an
     program_wide_df = generate_program_spreads_wide(projects, program_resources, hours_per_day=hours_per_day, agg_level=agg_level)
     allocated = final_program_spreads_wide(wide_df, program_wide_df, program_resources, annual_hours_factor=annual_hours_factor)
     result_df = pd.concat([allocated, wide_df], axis=0)
-    gantt_df = make_gantt_source(wide_df)
+    gantt_df = make_gantt_source(result_df, agg_level)
     return result_df, gantt_df
 
 def process_summary_statistics(file_bytes: bytes):
@@ -959,19 +964,6 @@ def process_summary_statistics(file_bytes: bytes):
             "mean_cost": "Mean Cost",
         })
     )
-
-
-    # totals = {
-    #     "Project Archetype": "Total",
-    #     "Project Count": summary_stats["Project Count"].sum(),
-    #     "Total Cost": summary_stats["Total Cost"].sum(),
-    #     "Min Cost": "-",
-    #     "Median Cost": "-",
-    #     "Max Cost": "-",
-    #     "Mean Cost": "-",
-    # }
-
-    # summary_stats = pd.concat([summary_stats, pd.DataFrame([totals])], ignore_index=True)
 
     return summary_stats
 
@@ -1059,10 +1051,9 @@ def main():
                 with stats_tab:
                     st.subheader("Summary Statistics")
                     # st.markdown(f"**Total Resource Assignments:** {len(result_df):,}")
-                    st.markdown(f"**Unique Projects:** {result_df['Project Name'].nunique():,}")
-                    st.markdown(f"**Unique Resources:** {result_df['Resource Name'].nunique():,}")
-                    st.markdown(f"**Total Hours (All Quarters):** {result_df[result_df.columns[9:]].sum().sum():,.2f}")
-                    st.markdown(f"**Total Cost in $M (All Projects):** {summary_stats["Total Cost"].sum():,.2f}")
+                    st.markdown(f"**Unique Projects:** {result_df['Project Name'].nunique(): ,}")
+                    st.markdown(f"**Unique Resources:** {result_df['Resource Name'].nunique(): ,}")
+                    st.markdown(f"**Total Hours (All Quarters):** {result_df[result_df.columns[9:]].sum().sum(): ,.2f}")
                     with st.expander("Cost Summary by Project Archetype in $M", expanded=True, width=1000):
                         st.dataframe(summary_stats, width=1000)
                         # st.dataframe(style_total_row(summary_stats), width=750)
@@ -1170,7 +1161,7 @@ def main():
             )
 
             # Melt adjusted wide table into long format for plotting  # <<< NEW
-            filtered_df = melt_dataframe(adjusted_wide, existing_metadata, date_cols)  # <<< NEW
+            filtered_df = melt_dataframe(adjusted_wide, existing_metadata, date_cols, agg_level)  # <<< NEW
 
             if filtered_df.empty:  # defensive guard  # <<< NEW
                 st.warning("No data available after adjustments for the selected filters.")  # <<< NEW
@@ -1183,24 +1174,24 @@ def main():
 
             # --- TAB 1: Hours vs Cumulative Sum ---
             with tab1:
-                grouped_hours = filtered_df.groupby('Quarter')['Hours'].sum().reset_index().sort_values('Quarter')
+                grouped_hours = filtered_df.groupby(agg_level.capitalize())['Hours'].sum().reset_index().sort_values(agg_level.capitalize())
                 grouped_hours['Cumulative Hours'] = grouped_hours['Hours'].cumsum()
                 # grouped_hours['Quarter'] = grouped_hours['Quarter'].dt.to_period('Q').astype(str)
-                grouped_hours['Quarter'] = grouped_hours['Quarter'].dt.strftime('%Y-%m-%d')
+                grouped_hours[agg_level.capitalize()] = grouped_hours[agg_level.capitalize()].dt.strftime('%Y-%m-%d')
 
                 fig_hours = go.Figure()
 
                 fig_hours.add_trace(go.Bar(
-                    x=grouped_hours['Quarter'],
+                    x=grouped_hours[agg_level.capitalize()],
                     y=grouped_hours['Hours'],
-                    name='Quarterly Hours',
+                    name=f'{agg_level.capitalize()}ly Hours',
                     textposition='auto',
                     marker_color='#4099da',
                     yaxis='y1'
                 ))
 
                 fig_hours.add_trace(go.Scatter(
-                    x=grouped_hours['Quarter'],
+                    x=grouped_hours[agg_level.capitalize()],
                     y=grouped_hours['Cumulative Hours'],
                     name='Cumulative Hours',
                     mode='lines+markers',
@@ -1209,10 +1200,10 @@ def main():
                 ))
 
                 fig_hours.update_layout(
-                    title="Manhour Curve Plots (Quarterly Hours vs Cumulative Hours)",
+                    title=f"Manhour Curve Plots ({agg_level.capitalize()}ly Hours vs Cumulative Hours)",
                     hovermode="x unified",
-                    xaxis=dict(title="Quarter"),
-                    yaxis=dict(title="Quarterly Hours", showgrid=False),
+                    xaxis=dict(title=agg_level.capitalize()),
+                    yaxis=dict(title=f"{agg_level.capitalize()}ly Hours", showgrid=False),
                     yaxis2=dict(title="Cumulative Hours", anchor="x", overlaying="y", side="right", showgrid=True),
                     legend=dict(orientation="h", y=1.02, x=1, xanchor="right"),
                     height=600
@@ -1220,7 +1211,7 @@ def main():
 
                 st.plotly_chart(fig_hours, width="stretch")
 
-                with st.expander("View Quarterly and Cumulative Hours Data"):
+                with st.expander(f"View {agg_level.capitalize()}ly and Cumulative Hours Data"):
                     st.dataframe(
                         grouped_hours.style.format(
                             {"Hours": "{:,.0f}", "Cumulative Hours": "{:,.0f}"}
@@ -1233,22 +1224,22 @@ def main():
                 fte_df['FTE'] = fte_df['Hours'] / annual_hours_factor
 
                 grouped_fte = (
-                    fte_df.groupby(['Quarter', 'Resource Name'])['FTE']
+                    fte_df.groupby([agg_level.capitalize(), 'Resource Name'])['FTE']
                     .sum()
                     .reset_index()
-                    .sort_values('Quarter')
+                    .sort_values(agg_level.capitalize())
                 )
-                grouped_fte['Quarter'] = grouped_fte['Quarter'].dt.strftime('%Y-%m-%d')
+                grouped_fte[agg_level.capitalize()] = grouped_fte[agg_level.capitalize()].dt.strftime('%Y-%m-%d')
 
                 quarter_totals = (
-                    grouped_fte.groupby('Quarter', as_index=False)['FTE']
+                    grouped_fte.groupby(agg_level.capitalize(), as_index=False)['FTE']
                     .sum()
                     .rename(columns={'FTE': 'Quarter Total FTE'})
                 )
 
                 fig_fte = px.bar(
                     grouped_fte,
-                    x='Quarter',
+                    x=agg_level.capitalize(),
                     y='FTE',
                     color='Resource Name',
                     title="Program Resource Requirements Count by Resource Type (Stacked)",
@@ -1261,7 +1252,7 @@ def main():
 
                 # Add invisible overlay bars that only carry the total hover
                 fig_fte.add_bar(
-                    x=quarter_totals['Quarter'],
+                    x=quarter_totals[agg_level.capitalize()],
                     y=quarter_totals['Quarter Total FTE'] / 100,
                     customdata=quarter_totals[['Quarter Total FTE']].values,
                     name='Total',
@@ -1278,10 +1269,10 @@ def main():
 
                 st.plotly_chart(fig_fte, width="stretch")
 
-                with st.expander("View Resource Data"):
-                    pivot_fte = grouped_fte.pivot(index='Quarter', columns='Resource Name', values='FTE').fillna(0)
-                    pivot_fte["Quarterly Total Resource"] = pivot_fte.sum(axis=1)
-                    cols = ['Quarterly Total Resource'] + [c for c in pivot_fte.columns if c != 'Quarterly Total Resource']
+                with st.expander(f"View {agg_level.capitalize()}ly Resource Data"):
+                    pivot_fte = grouped_fte.pivot(index=agg_level.capitalize(), columns='Resource Name', values='FTE').fillna(0)
+                    pivot_fte[f"{agg_level.capitalize()}ly Total Resource"] = pivot_fte.sum(axis=1)
+                    cols = [f"{agg_level.capitalize()}ly Total Resource"] + [c for c in pivot_fte.columns if c != f"{agg_level.capitalize()}ly Total Resource"]
                     pivot_fte = pivot_fte[cols]
                     st.dataframe(pivot_fte.style.format("{:.2f}"))
 
@@ -1298,26 +1289,26 @@ def main():
                             ]
                         # active_df = filtered_df.copy()
 
-                        active_counts = active_df.groupby(['Quarter', 'OpCo'])['Project Name'].nunique().reset_index()
-                        all_quarters = filtered_df['Quarter'].unique()
+                        active_counts = active_df.groupby([agg_level.capitalize(), 'OpCo'])['Project Name'].nunique().reset_index()
+                        all_quarters = filtered_df[agg_level.capitalize()].unique()
                         all_opcos = active_counts['OpCo'].unique()
 
                         if len(all_opcos) > 0:
                             # Create a dataframe with every combination of Quarter and OpCo
-                            full_grid = pd.DataFrame(list(product(all_quarters, all_opcos)), columns=['Quarter', 'OpCo'])
+                            full_grid = pd.DataFrame(list(product(all_quarters, all_opcos)), columns=[agg_level.capitalize(), 'OpCo'])
 
                             # Merge the actual counts into this full grid
-                            active_counts_full = pd.merge(full_grid, active_counts, on=['Quarter', 'OpCo'], how='left')
+                            active_counts_full = pd.merge(full_grid, active_counts, on=[agg_level.capitalize(), 'OpCo'], how='left')
                             active_counts_full['Project Name'] = active_counts_full['Project Name'].fillna(0)
 
 
                             # Sort by date
-                            active_counts_full = active_counts_full.sort_values('Quarter')
-                            active_counts_full['Quarter'] = active_counts_full['Quarter'].dt.strftime('%Y-%m-%d')
+                            active_counts_full = active_counts_full.sort_values(agg_level.capitalize())
+                            active_counts_full[agg_level.capitalize()] = active_counts_full[agg_level.capitalize()].dt.strftime('%Y-%m-%d')
 
                             fig_active = px.bar(
                                 active_counts_full,
-                                x='Quarter',
+                                x=agg_level.capitalize(),
                                 y='Project Name',
                                 color='OpCo',
                                 title="Program Major Projects - Active Projects by OpCo",
@@ -1328,11 +1319,11 @@ def main():
                             fig_active.update_layout(hovermode="x unified", legend_title_text='OpCo')
                             st.plotly_chart(fig_active, width='stretch')
 
-                            with st.expander("View Active Project Counts"):
-                                pivot_active = active_counts_full.pivot(index='Quarter', columns='OpCo',
+                            with st.expander(f"View {agg_level.capitalize()}ly Active Project Counts"):
+                                pivot_active = active_counts_full.pivot(index=agg_level.capitalize(), columns='OpCo',
                                                                         values='Project Name').fillna(0)
-                                pivot_active["Total Active Projects"] = pivot_active.sum(axis=1)
-                                cols = ['Total Active Projects'] + [c for c in pivot_active.columns if c != 'Total Active Projects']
+                                pivot_active[f"Total Active Projects"] = pivot_active.sum(axis=1)
+                                cols = [f"Total Active Projects"] + [c for c in pivot_active.columns if c != f"Total Active Projects"]
                                 pivot_active = pivot_active[cols]
                                 st.dataframe(pivot_active.style.format("{:,.0f}"))
                         else:
@@ -1348,26 +1339,26 @@ def main():
                             ]
                         # active_df = filtered_df.copy()
 
-                        active_counts = active_df.groupby(['Quarter', 'Program Name'])['Project Name'].nunique().reset_index()
-                        all_quarters = filtered_df['Quarter'].unique()
+                        active_counts = active_df.groupby([agg_level.capitalize(), 'Program Name'])['Project Name'].nunique().reset_index()
+                        all_quarters = filtered_df[agg_level.capitalize()].unique()
                         all_opcos = active_counts['Program Name'].unique()
 
                         if len(all_opcos) > 0:
                             # Create a dataframe with every combination of Quarter and Program Name
-                            full_grid = pd.DataFrame(list(product(all_quarters, all_opcos)), columns=['Quarter', 'Program Name'])
+                            full_grid = pd.DataFrame(list(product(all_quarters, all_opcos)), columns=[agg_level.capitalize(), 'Program Name'])
 
                             # Merge the actual counts into this full grid
-                            active_counts_full = pd.merge(full_grid, active_counts, on=['Quarter', 'Program Name'], how='left')
+                            active_counts_full = pd.merge(full_grid, active_counts, on=[agg_level.capitalize(), 'Program Name'], how='left')
                             active_counts_full['Project Name'] = active_counts_full['Project Name'].fillna(0)
 
 
                             # Sort by date
-                            active_counts_full = active_counts_full.sort_values('Quarter')
-                            active_counts_full['Quarter'] = active_counts_full['Quarter'].dt.strftime('%Y-%m-%d')
+                            active_counts_full = active_counts_full.sort_values(agg_level.capitalize())
+                            active_counts_full[agg_level.capitalize()] = active_counts_full[agg_level.capitalize()].dt.strftime('%Y-%m-%d')
 
                             fig_active = px.bar(
                                 active_counts_full,
-                                x='Quarter',
+                                x=agg_level.capitalize(),
                                 y='Project Name',
                                 color='Program Name',
                                 title="Program Major Projects - Active Projects by Program Name",
@@ -1378,11 +1369,11 @@ def main():
                             fig_active.update_layout(hovermode="closest", legend_title_text='Program Name')
                             st.plotly_chart(fig_active, width='stretch')
 
-                            with st.expander("View Active Project Counts"):
-                                pivot_active = active_counts_full.pivot(index='Quarter', columns='Program Name',
+                            with st.expander(f"View {agg_level.capitalize()}ly Active Project Counts"):
+                                pivot_active = active_counts_full.pivot(index=agg_level.capitalize(), columns='Program Name',
                                                                         values='Project Name').fillna(0)
-                                pivot_active["Total Active Projects"] = pivot_active.sum(axis=1)
-                                cols = ['Total Active Projects'] + [c for c in pivot_active.columns if c != 'Total Active Projects']
+                                pivot_active[f"Total Active Projects"] = pivot_active.sum(axis=1)
+                                cols = [f"Total Active Projects"] + [c for c in pivot_active.columns if c != f"Total Active Projects"]
                                 pivot_active = pivot_active[cols]
                                 st.dataframe(pivot_active.style.format("{:,.0f}"))
                         else:
@@ -1392,13 +1383,13 @@ def main():
             # --- TAB 4: Gantt Chart ---
             with tab4:
                 # st.subheader("Gantt chart of project activity")
-                fig = make_gantt_figure(st.session_state.get("gantt_df", pd.DataFrame()))
+                fig = make_gantt_figure(st.session_state.get("gantt_df", pd.DataFrame()), agg_level)
                 if fig is None:
                     st.warning("No Gantt data was generated.")
                 else:
                     st.plotly_chart(fig, width='stretch')
                     df = st.session_state.get("gantt_df", pd.DataFrame())
-                    for col in ['Starting Quarter', 'Finishing Quarter']:
+                    for col in [f'Starting {agg_level.capitalize()}', f'Finishing {agg_level.capitalize()}']:
                         if pd.api.types.is_datetime64_any_dtype(df[col]):
                             df[col] = df[col].dt.strftime('%Y-%m-%d')
                     with st.expander("Program Timeline Data", expanded=True):
