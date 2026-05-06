@@ -1062,7 +1062,7 @@ def main():
                     st.markdown(f"**Unique Projects:** {result_df['Project Name'].nunique():,}")
                     st.markdown(f"**Unique Resources:** {result_df['Resource Name'].nunique():,}")
                     st.markdown(f"**Total Hours (All Quarters):** {result_df[result_df.columns[9:]].sum().sum():,.2f}")
-                    st.markdown(f"**Total Cost (All Projects):** {summary_stats["Total Cost"].sum():,.2f}")
+                    st.markdown(f"**Total Cost in $M (All Projects):** {summary_stats["Total Cost"].sum():,.2f}")
                     with st.expander("Cost Summary by Project Archetype in $M", expanded=True, width=1000):
                         st.dataframe(summary_stats, width=1000)
                         # st.dataframe(style_total_row(summary_stats), width=750)
