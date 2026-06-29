@@ -953,10 +953,10 @@ def process_summary_statistics(file_bytes: bytes):
             "Project Archetype": "Project Archetype",
             "project_count": "Project Count",
             "total_cost": "Total Cost ($M)",
-            "min_cost": "Min Cost",
-            "median_cost": "Median Cost",
-            "max_cost": "Max Cost",
-            "mean_cost": "Mean Cost",
+            "min_cost": "Min Cost ($M)",
+            "median_cost": "Median Cost ($M)",
+            "max_cost": "Max Cost ($M)",
+            "mean_cost": "Mean Cost ($M)",
         })
     )
 
