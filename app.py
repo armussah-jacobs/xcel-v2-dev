@@ -1417,13 +1417,25 @@ def main():
 
             # --- TAB 5: Portfolio Summary ---
             with tab5:
+
+                # Specify which columns you want to format as currency
+                currency_cols = ["Total Cost ($M)", "Min Cost ($M)", "Median Cost ($M)", "Max Cost ($M)", "Mean Cost ($M)"]
+
+                # Create the dictionary configuration for those columns
+                config = {
+                    col: st.column_config.NumberColumn(
+                        format="dollar"  # Options include "dollar", "euro", "yen"
+                    )
+                    for col in currency_cols
+                }
+
                 st.subheader("Portfolio Summary")
                 # st.markdown(f"**Total Resource Assignments:** {len(result_df):,}")
                 st.markdown(f"**Unique Projects:** {result_df['Project Name'].nunique():,}")
                 st.markdown(f"**Unique Resources:** {result_df['Resource Name'].nunique():,}")
                 st.markdown(f"**Total Hours (All Quarters):** {result_df[result_df.columns[9:]].sum().sum():,.2f}")
                 with st.expander("Cost Summary by Project Archetype in $M", expanded=True, width=1000):
-                    st.dataframe(summary_stats, width=1000)
+                    st.dataframe(summary_stats, column_config=config, width=1000)
 
                 st.divider()
                 st.subheader("📋 Download Processed Data Report")
