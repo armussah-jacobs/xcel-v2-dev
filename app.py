@@ -1023,6 +1023,16 @@ def main():
         with st.sidebar:
             st.header("Navigation")
             # This radio button acts as the page switcher
+            with st.spinner("Processing Workbook..."):
+                result_df, gantt_df = process_workbook(
+                    uploaded_file.getvalue(),
+                    hours_per_day=hours_per_day,
+                    agg_level=agg_level,
+                    annual_hours_factor=annual_hours_factor,
+                )
+                st.session_state["result_df"] = result_df
+                st.session_state["gantt_df"] = gantt_df
+
             page_selection = st.radio("Go to:",
                                       ["📝 Resource Data","📊 Resource Analysis Dashboard"], 
                                       index=1, 
@@ -1032,24 +1042,13 @@ def main():
 
         if page_selection == "📝 Resource Data":
             st.title("📝 Resource Data")
-            with st.spinner("Processing Workbook..."):
-                result_df, gantt_df = process_workbook(
-                    uploaded_file.getvalue(),
-                    hours_per_day=hours_per_day,
-                    agg_level=agg_level,
-                    annual_hours_factor=annual_hours_factor,
-                )
+            result_tab = st.tabs(["Computed Resource Spreads Result"])[0]
+            result_df = st.session_state["result_df"]
 
-                summary_stats=process_summary_statistics(uploaded_file.getvalue())
-
-                st.session_state["result_df"] = result_df
-                st.session_state["gantt_df"] = gantt_df
-                result_tab = st.tabs(["Computed Resource Spreads Result"])[0]
-
-                with result_tab:
-                    with st.expander("Computed Resource Spreads Result", expanded=True):
-                        st.dataframe(result_df, width='stretch', height=700)
-                    st.caption(f"{len(result_df):,} rows")
+            with result_tab:
+                with st.expander("Computed Resource Spreads Result", expanded=True):
+                    st.dataframe(result_df, width='stretch', height=700)
+                st.caption(f"{len(result_df):,} rows")
  
 
         elif page_selection == "📊 Resource Analysis Dashboard":
